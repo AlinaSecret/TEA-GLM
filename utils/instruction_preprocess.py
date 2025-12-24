@@ -120,8 +120,8 @@ class InstructionDataset(Dataset):
         else:
             self.instructions = get_instructions(f"./instruction/{args.dataset}/{args.dataset}_dataset_{self.mode}.json")
 
-        self.paper = torch.load(f"./data/graph_data_paper.pt")
-        self.ecom = torch.load(f"./data/graph_data_ecommercial.pt")
+        self.paper = torch.load(f"./data/graph_data_paper.pt", weights_only=False)
+        self.ecom = torch.load(f"./data/graph_data_ecommercial.pt", weights_only=False)
         self.name2data = {
             'arxiv': self.paper['arxiv'],
             'pubmed': self.paper['pubmed'],

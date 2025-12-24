@@ -8,8 +8,8 @@ datasets=('arxiv:700' 'pubmed:700' 'cora:850')
 
 dataset='arxiv'
 num_token=5
-prefix='prefix of your first model to save'
-llm='path/to/llm'
+prefix='prefix'
+llm='huggyllama/llama-7b'
 
 
 for pair in "${datasets[@]}"

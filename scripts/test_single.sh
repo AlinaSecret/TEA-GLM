@@ -4,9 +4,7 @@ export TORCH_DISTRIBUTED_DEBUG=DETAIL
 wandb offline
 
 
-accelerate launch \
-    --config_file accelerate_config/my_config_0.yaml \
-    train_glm.py \
+accelerate launch  --num_processes=1 train_glm.py \
         --freeze_llama \
         --inference \
         --best_epoch 0 \

@@ -7,6 +7,7 @@ from peft import (    # LoRA Setting
     LoraConfig,
     get_peft_model,
 )
+from transformers import AutoConfig, AutoModelForCausalLM
 
 class TrainerBase(object):
     def __init__(self, args, device):
@@ -46,19 +47,11 @@ class TrainerBase(object):
         return config
 
     def create_model(self):
-        config = self.create_config()
-
-        model = InstructGLM.from_pretrained(
-            self.args.backbone,
-            config=config,
-            torch_dtype=torch.bfloat16,
-            # use_cache=True, 
-            # low_cpu_mem_usage=True,
-            device_map={"": self.cur_device}
-        )
+        config = AutoConfig.from_pretrained(self.args.backbone)
+        model = AutoModelForCausalLM.from_config(config)
 
         llama_embeds = model.get_input_embeddings().weight.data
-        
+
         if self.args.freeze_llama:
             for n, p in model.named_parameters():
                 p.requires_grad_(False)
@@ -71,7 +64,7 @@ class TrainerBase(object):
             model = get_peft_model(model, LORA_config)
 
 
-        node_token=torch.zeros(110, llama_embeds.shape[1]).to(device=self.cur_device, dtype=llama_embeds.dtype)
+        node_token=torch.zeros(110, llama_embeds.shape[1]).to(device=self.cur_device, dtype=llama_embeds.dtype).to(llama_embeds.device)
         llama_embeds=torch.cat([llama_embeds, node_token],dim=0)
 
         self.args.gnn_output = llama_embeds.shape[1]

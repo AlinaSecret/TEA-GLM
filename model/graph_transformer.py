@@ -31,8 +31,11 @@ class GraphEncoder(nn.Module):    # first_model, i.e. simple MLP for dimension t
         node_embedding = self.graph_projector(self.GT(graph.x, graph.edge_index, graph.edge_attr, graph.batch, graph.lp))
         node_embeddings = node_embedding.view(-1, self.embed_dim) # [bs * 5, dim]
 
+        if self.embed_tokens.device != input_ids.device:
+            self.embed_tokens = self.embed_tokens.to(input_ids.device)
+
         inputs_embeds = self.embed_tokens[input_ids]
-        inputs_embeds[is_node] = node_embeddings
+        inputs_embeds[is_node] = node_embeddings.to(inputs_embeds.dtype)
 
         return inputs_embeds # [bsz, seq, dim]
 

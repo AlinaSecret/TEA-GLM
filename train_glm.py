@@ -8,6 +8,8 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import timedelta
 
+
+
 from config import *
 from model import *
 from utils import *
@@ -39,8 +41,10 @@ def main(args, SEED):
     accelerator.print(args)
 
     with accelerator.main_process_first():
+        # This will try to download the tokenizer from the web if a local path isn't found
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b")
 
-        tokenizer = LlamaTokenizer.from_pretrained(args.backbone)
         tokenizer.pad_token=tokenizer.unk_token
         special={'additional_special_tokens': ['<Node {}>'.format(i) for i in range(1, 110)]}   # Add a new special token as place holder
         tokenizer.add_special_tokens(special)
@@ -71,8 +75,8 @@ def main(args, SEED):
     if not os.path.exists('./saved_model/first_model'):
         os.mkdir('./saved_model/first_model')
 
-    first_model_path = './saved_model/first_model/{}_fm_{}_epoch{}_{}.pth'
-    model_path = './saved_model/model/{}_m_{}_epoch{}_{}.pth'
+    first_model_path = './saved_model/first_model/TEA-GLM_citation.pth'
+    #model_path = './saved_model/model/{}_m_{}_epoch{}_{}.pth'
 
 
     if not args.inference:
@@ -156,14 +160,15 @@ def main(args, SEED):
         accelerator.print('Evaluating')
         with accelerator.main_process_first():
             first_model = accelerator.unwrap_model(first_model)
-            first_model.load_state_dict(torch.load(first_model_path.format(args.prefix, args.dataset, best_epoch, 'end')))
+            first_model.load_state_dict(torch.load(first_model_path.format(args.prefix, args.dataset, best_epoch, 'end', weights_only=False)))
             # first_model.GT.load_state_dict(torch.load(first_model_path.format(args.prefix, args.dataset, best_epoch, 'end')))
-            model = model.cuda() # transformers bug
-            model = accelerator.unwrap_model(model)
-            if not args.freeze_llama:
-                model.load_state_dict(torch.load(model_path.format(args.prefix, args.dataset, best_epoch, 'end')))
+            #model = model.cuda() # transformers bug
+            #model = accelerator.unwrap_model(model)
+            #if not args.freeze_llama:
+            #    model.load_state_dict(torch.load(model_path.format(args.prefix, args.dataset, best_epoch, 'end')))
 
         first_model.eval()
+        first_model = first_model.to(accelerator.device)
         model.eval()
         samples_seen = 0
         eval_output = []
@@ -172,56 +177,57 @@ def main(args, SEED):
         progress_bar_test = tqdm(range(len(test_loader)))
         for step, batch in enumerate(test_loader):
             with torch.no_grad():
-                input_ids = batch['input_ids']
-                is_node = batch['is_node']
-                attention_mask = batch['attn_mask']
-                graph = batch['graph']
+                input_ids = batch['input_ids'].to(accelerator.device)
+                is_node = batch['is_node'].to(accelerator.device)
+                #attention_mask = batch['attn_mask']
+                graph = batch['graph'].to(accelerator.device)
 
                 embeds = first_model(
                     input_ids=input_ids,
                     is_node=is_node,
                     graph=graph
                 )
+                print(embeds)
 
-                results = model.g_step(in_embeds=embeds, attention_mask=attention_mask)
-                results = accelerator.pad_across_processes(results, dim=1, pad_index=tokenizer.pad_token_id)
-                results_gathered = accelerator.gather(results).cpu().numpy()
-
-                labels = accelerator.pad_across_processes(
-                    batch["target_ids"],
-                    dim=1,
-                    pad_index=tokenizer.pad_token_id)
-                labels_gathered = accelerator.gather(labels).cpu().numpy()
-
-                if accelerator.num_processes > 1:
-                    if step == len(test_loader) - 1:
-                        results_gathered = results_gathered[
-                                                    : len(test_loader.dataset) - samples_seen]
-                        labels_gathered = labels_gathered[
-                                                    : len(test_loader.dataset) - samples_seen]
-                    else:
-                        samples_seen += len(results_gathered)
-                labels_gathered = np.where(labels_gathered != -100, labels_gathered, tokenizer.pad_token_id)
-                accelerator.print(tokenizer.batch_decode(results_gathered, skip_special_tokens=True))
-                # accelerator.print(tokenizer.batch_decode(labels_gathered, skip_special_tokens=True))
-
-                eval_output.append(results_gathered)
-                eval_label.append(labels_gathered)
+                #results = model.g_step(in_embeds=embeds, attention_mask=attention_mask)
+                #results = accelerator.pad_across_processes(results, dim=1, pad_index=tokenizer.pad_token_id)
+                #results_gathered = accelerator.gather(results).cpu().numpy()
+#
+                #labels = accelerator.pad_across_processes(
+                #    batch["target_ids"],
+                #    dim=1,
+                #    pad_index=tokenizer.pad_token_id)
+                #labels_gathered = accelerator.gather(labels).cpu().numpy()
+#
+                #if accelerator.num_processes > 1:
+                #    if step == len(test_loader) - 1:
+                #        results_gathered = results_gathered[
+                #                                    : len(test_loader.dataset) - samples_seen]
+                #        labels_gathered = labels_gathered[
+                #                                    : len(test_loader.dataset) - samples_seen]
+                #    else:
+                #        samples_seen += len(results_gathered)
+                #labels_gathered = np.where(labels_gathered != -100, labels_gathered, tokenizer.pad_token_id)
+                #accelerator.print(tokenizer.batch_decode(results_gathered, skip_special_tokens=True))
+                ## accelerator.print(tokenizer.batch_decode(labels_gathered, skip_special_tokens=True))
+#
+                #eval_output.append(results_gathered)
+                #eval_label.append(labels_gathered)
             progress_bar_test.update(1)
 
         # Step 6. Post-processing & Evaluating
-        res_path = f'./results/{args.test_dataset}/{args.prefix}_model_results.txt'
-        label_path = f'./results/{args.test_dataset}/{args.prefix}_model_labels.txt'
-
-        if not os.path.exists(f'./results/{args.test_dataset}'):
-            os.makedirs(f'./results/{args.test_dataset}')
-
-        if accelerator.is_local_main_process:
-            eval_pred, eval_decode_label = output_decode(eval_output, eval_label, tokenizer)
-            with open(res_path, 'w') as f:
-                json.dump(eval_pred, f)
-            with open(label_path, 'w') as f:
-                json.dump(eval_decode_label, f)
+        #res_path = f'./results/{args.test_dataset}/{args.prefix}_model_results.txt'
+        #label_path = f'./results/{args.test_dataset}/{args.prefix}_model_labels.txt'
+#
+        #if not os.path.exists(f'./results/{args.test_dataset}'):
+        #    os.makedirs(f'./results/{args.test_dataset}')
+#
+        #if accelerator.is_local_main_process:
+        #    eval_pred, eval_decode_label = output_decode(eval_output, eval_label, tokenizer)
+        #    with open(res_path, 'w') as f:
+        #        json.dump(eval_pred, f)
+        #    with open(label_path, 'w') as f:
+        #        json.dump(eval_decode_label, f)
     
 
 if __name__ == "__main__":

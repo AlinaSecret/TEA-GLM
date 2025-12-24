@@ -174,6 +174,7 @@ def main(args, SEED):
         eval_output = []
         eval_label = []
 
+        all_data_list = []  # We will store everything here
         progress_bar_test = tqdm(range(len(test_loader)))
         for step, batch in enumerate(test_loader):
             with torch.no_grad():
@@ -187,7 +188,17 @@ def main(args, SEED):
                     is_node=is_node,
                     graph=graph
                 )
-                print(embeds)
+                gathered_embeds = accelerator.gather(embeds).cpu()
+                gathered_is_node = accelerator.gather(batch['is_node']).cpu()
+                graphs_list = batch['graph'].to_data_list()
+
+                for i in range(len(graphs_list)):
+                    sample = {
+                        'embed': gathered_embeds[i].clone(),
+                        'is_node_mask': gathered_is_node[i].clone(),
+                        'graph': graphs_list[i]  # This is the PyG Data object
+                    }
+                    all_data_list.append(sample)
 
                 #results = model.g_step(in_embeds=embeds, attention_mask=attention_mask)
                 #results = accelerator.pad_across_processes(results, dim=1, pad_index=tokenizer.pad_token_id)
@@ -228,6 +239,9 @@ def main(args, SEED):
         #        json.dump(eval_pred, f)
         #    with open(label_path, 'w') as f:
         #        json.dump(eval_decode_label, f)
+        if accelerator.is_main_process:
+            torch.save(all_data_list, f"{group}_tea_glm_graph_dataset.pt")
+            print(f"Successfully created dataset with {len(all_data_list)} samples.")
     
 
 if __name__ == "__main__":

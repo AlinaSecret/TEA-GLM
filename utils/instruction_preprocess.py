@@ -164,6 +164,7 @@ class InstructionDataset(Dataset):
 
         out_dict['is_node'] = is_node
         out_dict['graph'] = graph
+        out_dict['raw'] = raw['prompt']
 
         return out_dict
 
@@ -174,18 +175,21 @@ class InstructionDataset(Dataset):
         attention_mask = []
         is_node = []
         graph = []
-        
+        raw_texts = []  # 1. Create a list for raw text
+
         for i, entry in enumerate(batch):
             input_ids.append(entry['input_ids'])
             target_ids.append(entry['target_ids'])
             attention_mask.append(entry['attention_mask'])
             is_node.append(entry['is_node'])
             graph.append(entry['graph'])
-        
-        batch_entry['input_ids'] = torch.cat(input_ids, dim=0) # tensor
-        batch_entry['target_ids'] = torch.cat(target_ids, dim=0) # tensor
-        batch_entry['attn_mask']= torch.cat(attention_mask, dim=0) # tensor
-        batch_entry['is_node'] = torch.cat(is_node, dim=0) # tensor
-        batch_entry['graph'] = Batch.from_data_list(graph)
+            raw_texts.append(entry['raw'])  # 2. Collect the raw text
 
-        return batch_entry      # Real batch data.
+        batch_entry['input_ids'] = torch.cat(input_ids, dim=0)
+        batch_entry['target_ids'] = torch.cat(target_ids, dim=0)
+        batch_entry['attn_mask'] = torch.cat(attention_mask, dim=0)
+        batch_entry['is_node'] = torch.cat(is_node, dim=0)
+        batch_entry['graph'] = Batch.from_data_list(graph)
+        batch_entry['raw'] = raw_texts  # 3. Add it to the final batch dictionary
+
+        return batch_entry

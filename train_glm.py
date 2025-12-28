@@ -58,8 +58,9 @@ def main(args, SEED):
     if not args.inference:
         train_loader = trainer.create_dataloader(tokenizer)
     else:
+        train_loader = trainer.create_dataloader(tokenizer)
         test_loader = trainer.create_dataloader(tokenizer)
-        train_loader = test_loader
+        #train_loader = test_loader
 
     accelerator.print('Building Model')
     first_model, model = trainer.create_model()
@@ -193,10 +194,16 @@ def main(args, SEED):
                 graphs_list = batch['graph'].to_data_list()
 
                 for i in range(len(graphs_list)):
+                    # Clean the target IDs (remove masking values)
+                    raw_targets = batch['target_ids'][i]
+                    clean_targets = raw_targets[raw_targets != -100]
+
                     sample = {
                         'embed': gathered_embeds[i].clone(),
                         'is_node_mask': gathered_is_node[i].clone(),
-                        'graph': graphs_list[i]  # This is the PyG Data object
+                        'graph': graphs_list[i],
+                        'raw': batch['raw'][i],
+                        'target_tokens': clean_targets.clone()  # This saves the Ground Truth!
                     }
                     all_data_list.append(sample)
 

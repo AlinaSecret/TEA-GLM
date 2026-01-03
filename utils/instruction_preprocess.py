@@ -14,7 +14,7 @@ def get_instructions(data_path):
     df['edge_num'] = df.apply(get_edge_num, axis=1)
     df['gpt'] = df['output']
     df = df.reset_index(drop=True)
-    df = df.sample(n=20, ignore_index=True)
+    df = df.sample(n=50, ignore_index=True)
 
     return df
 
@@ -164,7 +164,7 @@ class InstructionDataset(Dataset):
 
         out_dict['is_node'] = is_node
         out_dict['graph'] = graph
-        out_dict['raw'] = raw['prompt']
+        out_dict['raw'] = instruction['prompt']
 
         return out_dict
 

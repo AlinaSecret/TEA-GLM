@@ -88,9 +88,11 @@ class GraphSAGE(nn.Module):
         assert lp.shape[0] == len(x)
         for i in range(len(x)):
             if lp[i].data.item() == True:
-                xs.append((x[i][0] + x[i][1]) / 2)
+                # xs.append((x[i][0] + x[i][1]) / 2)
+                xs.append(x[i].mean(dim=0))
             else:
-                xs.append(x[i][0])
+                # xs.append(x[i][0])
+                xs.append(x[i].mean(dim=0))
         x = t.stack(xs, dim=0)
 
         return x

@@ -247,7 +247,7 @@ def main(args, SEED):
         #    with open(label_path, 'w') as f:
         #        json.dump(eval_decode_label, f)
         if accelerator.is_main_process:
-            torch.save(all_data_list, f"{group}_tea_glm_graph_dataset.pt")
+            torch.save(all_data_list, f"{group}_tea_glm_graph_dataset_whole_graph.pt")
             print(f"Successfully created dataset with {len(all_data_list)} samples.")
     
 
